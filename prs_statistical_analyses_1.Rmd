@@ -1,0 +1,1591 @@
+---
+title: "PRS Statistical Analysis"
+author: "Jennifer Daniel Onwuchekwa"
+date: "12/17/2021"
+output: pdf_document
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Set working directory
+```{r}
+getwd()
+setwd("/sc/arion/projects/rg_HPIMS/user/daniej08")
+```
+
+## Read in Dataset
+```{r BRSPD_PRS}
+#Import dataset
+library(data.table)
+BRSPD_PRS <- fread("/sc/arion/projects/rg_HPIMS/user/daniej08/Final_BioMe_QCedPCA_BRSPD_PRS.tsv", header = TRUE)
+colnames(BRSPD_PRS)
+#View(BRSPD_PRS)
+typeof(BRSPD_PRS)
+ncol(BRSPD_PRS)
+
+
+```
+
+
+```{r}
+#Add AGE column
+current_year <- 2021
+typeof(BRSPD_PRS$YEAR_OF_BIRTH)
+BRSPD_PRS$Age <- current_year - BRSPD_PRS$YEAR_OF_BIRTH
+mean(BRSPD_PRS$Age, na.rm=T)
+
+range(BRSPD_PRS$Age, na.rm=T)
+```
+```{r}
+summary(BRSPD_PRS$PRS_SCORE_SUM_SCALED)
+nrow(BRSPD_PRS$PRS_SCORE_SUM_SCALED)
+```
+
+
+```{r}
+#BRSPD_PRS$PRS_SCORE_SUM <- scale(BRSPD_PRS$PRS_SCORE_SUM[BRSPD_PRS$PRS_Ancestry=="AFR"], center = TRUE, scale = TRUE)
+#BRSPD_PRS$PRS_SCORE_SUM <- scale(BRSPD_PRS$PRS_SCORE_SUM[BRSPD_PRS$PRS_Ancestry=="EUR"], center = TRUE, scale = TRUE)
+#BRSPD_PRS$PRS_SCORE_SUM <- scale(BRSPD_PRS$PRS_SCORE_SUM[BRSPD_PRS$PRS_Ancestry=="AMR"], center = TRUE, scale = TRUE)
+#BRSPD_PRS$PRS_SCORE_SUM <- scale(BRSPD_PRS$PRS_SCORE_SUM[BRSPD_PRS$PRS_Ancestry=="SAS"], center = TRUE, scale = TRUE)
+#BRSPD_PRS$PRS_SCORE_SUM <- scale(BRSPD_PRS$PRS_SCORE_SUM[BRSPD_PRS$PRS_Ancestry=="EAS"], center = TRUE, scale = TRUE)
+
+
+
+###PRS scores
+prs_afr <- read.table("/sc/arion/projects/rg_HPIMS/user/daniej08/prscs_AFR_BioME/afr_biome_score01.profile", header = TRUE)
+prs_afr$SCORESUM <- scale(prs_afr$SCORESUM, center = TRUE, scale = TRUE)
+prs_afr$ancestry <-"AFR"
+head(prs_afr)
+#EUR
+prs_eur <- read.table("/sc/arion/projects/rg_HPIMS/user/daniej08/prscs_EUR_BioME/eur_biome_score01.profile", header = TRUE)
+prs_eur$SCORESUM <- scale(prs_eur$SCORESUM, center = TRUE, scale = TRUE)
+prs_eur$ancestry <-"EUR"
+#AMR
+prs_amr <- read.table("/sc/arion/projects/rg_HPIMS/user/daniej08/prscs_AMR_BioME/amr_biome_score01.profile", header = TRUE)
+prs_amr$SCORESUM <- scale(prs_amr$SCORESUM, center = TRUE, scale = TRUE)
+prs_amr$ancestry <-"AMR"
+#EAS
+prs_eas <- read.table("/sc/arion/projects/rg_HPIMS/user/daniej08/prscs_EAS_BioME/eas_biome_score01.profile", header = TRUE)
+prs_eas$SCORESUM <- scale(prs_eas$SCORESUM, center = TRUE, scale = TRUE)
+prs_eas$ancestry <-"EAS"
+#SAS
+prs_sas <- read.table("/sc/arion/projects/rg_HPIMS/user/daniej08/prscs_SAS_BioME/sas_biome_score01.profile", header = TRUE)
+prs_sas$SCORESUM <- scale(prs_sas$SCORESUM, center = TRUE, scale = TRUE)
+prs_sas$ancestry <-"SAS"
+
+PRS_SSUM <- rbind(prs_afr, prs_eur, prs_amr, prs_eas, prs_sas)
+#View(PRS_SSUM)
+
+
+
+mean(prs_afr$SCORESUM)
+sd(prs_afr$SCORESUM)
+
+###PRS_Scores
+prs_score_sum <- c()
+prs_ancestry <- c()
+
+for(row in 1:nrow(BRSPD_PRS)){
+  current_IID <- BRSPD_PRS$IID[row]
+  if (current_IID %in% PRS_SSUM$IID){
+    prs_score_sum <- c(prs_score_sum, PRS_SSUM$SCORESUM[row])
+    prs_ancestry <- c(prs_ancestry, PRS_SSUM$ancestry[row])
+  }
+  else {
+    prs_score_sum <- c(prs_score_sum, NA)
+    prs_ancestry <- c(prs_ancestry, NA)
+  }
+}
+
+
+table(prs_ancestry)
+#AFR  AMR  EAS  EUR  SAS 
+#5714 5397  738 7631  620 
+sum(is.na(prs_score_sum))  #196NAs
+
+BRSPD_PRS$PRS_SCORE_SUM_SCALED <- prs_score_sum
+BRSPD_PRS$PRS_ANCESTRY_S <- prs_ancestry
+
+View(BRSPD_PRS)
+
+
+
+```
+
+
+## Data Summaries
+
+```{r General Summary Table, echo=FALSE}
+#Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+###SUMARY TABLE
+#?summary_table
+library("gridExtra")
+library(qwraps2)
+options(qwraps2_markup="markdown")
+biome_summaries <-
+  list("AGE"=
+         list("< 5"=~qwraps2::n_perc0(Age < 5, na_rm = T),
+              "5 to 18"=~qwraps2::n_perc0(Age>=5 & Age<=18, na_rm = T),
+              "19 to 40"=~qwraps2::n_perc0(Age>18 & Age<=40, na_rm = T),
+              ">40"=~qwraps2::n_perc0(Age>40, na_rm = T),
+              "Median Age"=~qwraps2::median_iqr(Age, na_rm = T),
+              "Mean Age"=~qwraps2::mean_sd(Age, na_rm = T)),
+       "GENDER"=
+         list("Male"=~qwraps2::n_perc0(GENDER.y=="Male"),
+              "Female"=~qwraps2::n_perc0(GENDER.y=="Female")),
+       "SELF-REPORTED RACE"=
+         list("American Indian or Alaska Native"=~qwraps2::n_perc0(RACE.x=="American Indian or Alaska Native"),
+              "Black or African American"=~qwraps2::n_perc0(RACE.x=="Black or African American"),
+              "White/Caucasian"=~qwraps2::n_perc0(RACE.x=="White / Caucasian"),
+              "Other"=~qwraps2::n_perc0(RACE.x=="Other (Specify)"),
+              "Unknown/Not Reported"=~qwraps2::n_perc0(RACE.x=="Unknown or Not Reported"),
+              "NA"=~qwraps2::n_perc0(RACE.x=="")),
+       "SELF-REPORTED ETHNICITY"=
+         list("Hispanic-Latin American"=~qwraps2::n_perc0(ETHNICITY_2_simpl=="Hispanic-Latino"),
+              "White-Caucasian"=~qwraps2::n_perc0(ETHNICITY_2_simpl=="White-Caucasian"),
+              "African-American/African"=~qwraps2::n_perc0(ETHNICITY_2_simpl=="African-American"),
+              "American Indian/Native American"=~qwraps2::n_perc0(ETHNICITY_2_simpl=="American Indian"),
+              "East/SouthEast Asian"=~qwraps2::n_perc0(ETHNICITY_2_simpl=="East or SE Asian"),
+              "South Asian/Indian"=~qwraps2::n_perc0(ETHNICITY_2_simpl=="South Asian"),
+              "Jewish/Jewish Mediterranean/Mediterranean"=~qwraps2::n_perc0(ETHNICITY_2_simpl=="Jewish"),
+              "Other"=~qwraps2::n_perc0(ETHNICITY_2_simpl=="Other"),
+              "NA"=~qwraps2::n_perc0(ETHNICITY_2_simpl=="")),
+       "GENETIC ANCESTRY"=
+         list("African"=~qwraps2::n_perc0(SuperPop=="AFR"),
+              "Ad Mixed American"=~qwraps2::n_perc0(SuperPop=="AMR"),
+              "East Asian"=~qwraps2::n_perc0(SuperPop=="EAS"),
+              "European"=~qwraps2::n_perc0(SuperPop=="EUR"),
+              "South Asian"=~qwraps2::n_perc0(SuperPop=="SAS")))
+###Overall Summary Table
+biome_summary_table <- summary_table(BRSPD_PRS, biome_summaries)
+print(biome_summary_table)
+```
+
+
+
+```{r Table by Super Population}
+###Group by Super Population
+by_superpop <- summary_table(dplyr::group_by(BRSPD_PRS, SuperPop), biome_summaries)
+by_superpop
+
+
+```
+
+```{r}
+#Selfreported Ethnicity - Transform blank cells to NAs
+
+typeof(BRSPD_PRS$ETHNICITY_2_simpl)
+
+#BRSPD_PRS$ETHNICITY_2_simpl <- as.factor(BRSPD_PRS$ETHNICITY_2_simpl)
+#summary(BRSPD_PRS$ETHNICITY_2_simpl)
+
+#BRSPD_PRS$ETHNICITY_2_simpl <- as.character(BRSPD_PRS$ETHNICITY_2_simpl)
+BRSPD_PRS$ETHNICITY_2_simpl[BRSPD_PRS$ETHNICITY_2_simpl==""] <- NA
+#BRSPD_PRS$ETHNICITY_2_simpl <- as.factor(BRSPD_PRS$ETHNICITY_2_simpl)
+
+#typeof(BRSPD_PRS$ETHNICITY_2_simpl)
+#summary(BRSPD_PRS$ETHNICITY_2_simpl)
+
+##Change self reported to character after plot
+
+```
+
+## Genetic Ancestries vs Self-reported Ancestries
+```{r}
+library("ggplot2")
+
+#pdf("/sc/arion/projects/rg_HPIMS/user/daniej08/plots_and_graphs/GeneticAncestry.pdf")
+#par(mfrow=c(1,2))
+ggplot(data = BRSPD_PRS, aes(x = PC1, y = PC2, color= SuperPop)) + 
+  geom_point(alpha = 0.2) + 
+  scale_color_brewer(palette = "Set1") + 
+  ggtitle("Genetic Ancestry (>50%) of BioMe participants") + 
+  labs(color = "Super Population")
+#dev.off()
+
+
+#pdf("/sc/arion/projects/rg_HPIMS/user/daniej08/plots_and_graphs/SelfReportedAncestry.pdf")
+ggplot(data = BRSPD_PRS[!is.na(ETHNICITY_2_simpl)], aes(x = PC1, y = PC2, color = ETHNICITY_2_simpl)) + 
+  geom_point(alpha = 0.2) + 
+  scale_color_brewer(palette = "Set1") + 
+  ggtitle("Self Reported Ethnicity of BioMe participants") + 
+  labs(colour = "Self-reported Ethnicity")
+#+scale_color_discrete(breaks = levels(BRSPD_PRS$ETHNICITY_2_simpl))
+#dev.off()
+
+
+#install.packages("gridExtra")
+#library(gridExtra)
+#gridExtra::grid.arrange(fac,fac_et, ncol = 2) 
+```
+
+
+## PRS Distribution by Super Populations
+```{r PRS_AFR}
+#PRS by Ancestry
+###AFR
+#pdf("/sc/arion/projects/rg_HPIMS/user/daniej08/plots_and_graphs/PRS_AFR_Histogram.pdf")
+PRS_AFR_Epilepsy <- read.table("/sc/arion/projects/rg_HPIMS/user/daniej08/prscs_AFR_BioME/afr_biome_score01.profile", header = TRUE)
+
+PRS_AFR_Epilepsy$SCORESUM <- scale(PRS_AFR_Epilepsy$SCORESUM, center = TRUE, scale = TRUE)
+#png(file = "PRS_AFR_Histogram.png")
+hist(PRS_AFR_Epilepsy$SCORESUM,
+     #col="peachpuff",
+     border= "black",
+     prob= TRUE, # show densities instead of frequencies
+     xlab= "polygenic risk score",
+     main= "GGE PRS Distribution in AFR ancestry")
+#Add desity plot
+lines(density(PRS_AFR_Epilepsy$SCORESUM), # density plot
+ lwd = 2, # thickness of line
+ col = "chocolate3")
+lines(density(PRS_AFR_Epilepsy$SCORESUM, adjust=2), lty="dotted", col="darkgreen", lwd=2)  # add another "smoother" density
+#abline(v = mean(PRS_AFR_Epilepsy$SCORESUM),
+# col = "red",
+# lwd = 3)
+#abline(v = median(PRS_AFR_Epilepsy$SCORESUM),
+# col = "royalblue",
+# lwd = 2)
+legend(x = "topright", # location of legend within plot area
+ c("Density plot", "Normal distribution"),#, "Mean", "Median"
+ col = c("chocolate3", "darkgreen"),#, "red", "royalblue"
+ lty = c(1,4,1,1),
+ lwd = c(2, 2, 2, 2))
+#dev.off()
+```
+```{r}
+mean(PRS_AFR_Epilepsy$SCORESUM, na.rm = T)
+sd(PRS_AFR_Epilepsy$SCORESUM)
+```
+
+
+
+```{r PRS_EUR}
+#EUR
+#pdf("/sc/arion/projects/rg_HPIMS/user/daniej08/plots_and_graphs/PRS_EUR_Histogram.pdf")
+PRS_EUR_Epilepsy <- read.table("/sc/arion/projects/rg_HPIMS/user/daniej08/prscs_EUR_BioME/eur_biome_score01.profile", header = TRUE)
+PRS_EUR_Epilepsy$SCORESUM <- scale(PRS_EUR_Epilepsy$SCORESUM, center = TRUE, scale = TRUE)
+hist(PRS_EUR_Epilepsy$SCORESUM,
+     #col="peachpuff",
+     border= "black",
+     prob= TRUE, # show densities instead of frequencies
+     xlab= "polygenic risk score",
+     main="GGE PRS Distribution in EUR ancestry")
+lines(density(PRS_EUR_Epilepsy$SCORESUM), # density plot
+ lwd = 2, # thickness of line
+ col = "chocolate3")
+lines(density(PRS_EUR_Epilepsy$SCORESUM, adjust=2), lty="dotted", col="darkgreen", lwd=2)  # add another "smoother" density
+legend(x = "topright", # location of legend within plot area
+ c("Density plot", "Normal distribution"),
+ col = c("chocolate3", "darkgreen"),
+ lty = c(1,4),
+ lwd = c(2, 2))
+#dev.off()
+```
+
+
+```{r PRS_AMR}
+#AMR
+#pdf("/sc/arion/projects/rg_HPIMS/user/daniej08/plots_and_graphs/PRS_AMR_Histogram.pdf")
+PRS_AMR_Epilepsy <- read.table("/sc/arion/projects/rg_HPIMS/user/daniej08/prscs_AMR_BioME/amr_biome_score01.profile", header = TRUE)
+PRS_AMR_Epilepsy$SCORESUM <- scale(PRS_AMR_Epilepsy$SCORESUM, center = TRUE, scale = TRUE)
+hist(PRS_AMR_Epilepsy$SCORESUM,
+     #col="peachpuff",
+     border= "black",
+     prob= TRUE, # show densities instead of frequencies
+     xlab= "polygenic risk score",
+     main="GGE PRS Distribution in AMR ancestry")
+lines(density(PRS_AMR_Epilepsy$SCORESUM), # density plot
+ lwd = 2, # thickness of line
+ col = "chocolate3")
+lines(density(PRS_AMR_Epilepsy$SCORESUM, adjust=2), lty="dotted", col="darkgreen", lwd=2)  # add another "smoother" density
+legend(x = "topright", # location of legend within plot area
+ c("Density plot", "Normal distribution"),
+ col = c("chocolate3", "darkgreen"),
+ lty = c(1,4),
+ lwd = c(2, 2))
+#dev.off()
+```
+
+
+```{r PRS_EAS}
+#EAS
+#pdf("/sc/arion/projects/rg_HPIMS/user/daniej08/plots_and_graphs/PRS_EAS_Histogram.pdf")
+PRS_EAS_Epilepsy <- read.table("/sc/arion/projects/rg_HPIMS/user/daniej08/prscs_EAS_BioME/eas_biome_score01.profile", header = TRUE)
+PRS_EAS_Epilepsy$SCORESUM <- scale(PRS_EAS_Epilepsy$SCORESUM, center = TRUE, scale = TRUE)
+hist(PRS_EAS_Epilepsy$SCORESUM,
+     #col="peachpuff",
+     border= "black",
+     prob= TRUE, # show densities instead of frequencies
+     xlab= "polygenic risk score",
+     main="GGE PRS Distribution in EAS ancestry")
+lines(density(PRS_EAS_Epilepsy$SCORESUM), # density plot
+ lwd = 2, # thickness of line
+ col = "chocolate3")
+lines(density(PRS_EAS_Epilepsy$SCORESUM, adjust=2), lty="dotted", col="darkgreen", lwd=2)  # add another "smoother" density
+legend(x = "topright", # location of legend within plot area
+ c("Density plot", "Normal distribution"),
+ col = c("chocolate3", "darkgreen"),
+ lty = c(1,4),
+ lwd = c(2, 2))
+#dev.off()
+
+```
+
+
+```{r PRS_SAS}
+#SAS
+#pdf("/sc/arion/projects/rg_HPIMS/user/daniej08/plots_and_graphs/PRS_SAS_Histogram.pdf")
+PRS_SAS_Epilepsy <- read.table("/sc/arion/projects/rg_HPIMS/user/daniej08/prscs_SAS_BioME/sas_biome_score01.profile", header = TRUE)
+PRS_SAS_Epilepsy$SCORESUM <- scale(PRS_SAS_Epilepsy$SCORESUM, center = TRUE, scale = TRUE)
+hist(PRS_SAS_Epilepsy$SCORESUM,
+     #col="peachpuff",
+     border= "black",
+     prob= TRUE, # show densities instead of frequencies
+     xlab= "polygenic risk score",
+     main="GGE PRS Distribution in SAS ancestry")
+lines(density(PRS_SAS_Epilepsy$SCORESUM), # density plot
+ lwd = 2, # thickness of line
+ col = "chocolate3")
+lines(density(PRS_SAS_Epilepsy$SCORESUM, adjust=2), lty="dotted", col="darkgreen", lwd=2)  # add another "smoother" density
+legend(x = "topright", # location of legend within plot area
+ c("Density plot", "Normal distribution"),
+ col = c("chocolate3", "darkgreen"),
+ lty = c(1,4),
+ lwd = c(2, 2))
+#dev.off()
+
+
+```
+```{r}
+sd(PRS_SAS_Epilepsy$SCORESUM)
+```
+
+## Cases and Control
+```{r Count}
+
+library(qwraps2)
+options(qwraps2_markup="markdown")
+case_summaries <-
+  list("Age of diagnosis"=
+         list("< 5"=~qwraps2::n_perc0(Age_At_First_Diagnosis < 5, na_rm = T),
+              "5 to 18"=~qwraps2::n_perc0(Age_At_First_Diagnosis>=5 & Age<=18, na_rm = T),
+              "19 to 40"=~qwraps2::n_perc0(Age_At_First_Diagnosis>18 & Age<=40, na_rm = T),
+              ">40"=~qwraps2::n_perc0(Age_At_First_Diagnosis>40, na_rm = T),
+              "Median Age"=~qwraps2::median_iqr(Age_At_First_Diagnosis, na_rm = T),
+              "Mean Age"=~qwraps2::mean_sd(Age_At_First_Diagnosis, na_rm = T)),
+       "Gender"=
+         list("Male"=~qwraps2::n_perc0(GENDER.y=="Male"),
+              "Female"=~qwraps2::n_perc0(GENDER.y=="Female")),
+       "Super Population"=
+         list("African"=~qwraps2::n_perc0(SuperPop=="AFR"),
+              "Ad Mixed American"=~qwraps2::n_perc0(SuperPop=="AMR"),
+              "East Asian"=~qwraps2::n_perc0(SuperPop=="EAS"),
+              "European"=~qwraps2::n_perc0(SuperPop=="EUR"),
+              "South Asian"=~qwraps2::n_perc0(SuperPop=="SAS")))
+###Overall Summary Table
+#case_summary_table <- summary_table(BRSPD_PRS, case_summaries)
+#case_summary_table
+
+by_ExpGrp <- summary_table(dplyr::group_by(BRSPD_PRS, exp_Group), case_summaries)
+by_ExpGrp
+
+
+```
+
+
+```{r PRS_by_ExpGrp}
+#library(magrittr) # needs to be run every time you start R and want to use %>%
+library(dplyr)
+mean_prs_df <- BRSPD_PRS %>% group_by(exp_Group) %>% summarize(mean=mean(PRS_SCORE_SUM_SCALED, na.rm = TRUE))
+mean_prs_df
+```
+
+
+```{r}
+#Histogram Distribution of PRS of Experimental Groups
+#1
+#pdf("/sc/arion/projects/rg_HPIMS/user/daniej08/plots_and_graphs/PRS_ExpGrps_Histogram1.pdf")
+#par(mfrow=c(1,2))
+ggplot(BRSPD_PRS, aes(x=PRS_SCORE_SUM_SCALED, col=exp_Group)) + 
+  geom_density() +
+  scale_x_log10() + 
+  theme_bw() + 
+  labs(x="Polygenic risk score", 
+       subtitle = "Polygenic Risk Score distribution of Cases and Controls") +
+  scale_colour_discrete(name="Experimental groups",
+                            labels=c("Control", "GGE cases", "Other seizure cases"))
+
+
+#dev.off()
+
+
+#2
+ggplot(BRSPD_PRS, aes(x=PRS_SCORE_SUM_SCALED, fill=exp_Group)) + geom_density() + theme_minimal()  
+
+#3
+ggplot(BRSPD_PRS, aes(x=PRS_SCORE_SUM_SCALED, col=exp_Group)) + geom_density()
+
+
+#4
+#pdf("/sc/arion/projects/rg_HPIMS/user/daniej08/plots_and_graphs/MeanPRS_ExpGrps_Histogram1.pdf")
+ggplot(BRSPD_PRS, aes(x=PRS_SCORE_SUM_SCALED, color=exp_Group, fill=exp_Group)) + 
+  geom_density(alpha=0.3, size=1) +
+  geom_vline(data = mean_prs_df, aes(xintercept=mean, color=exp_Group), size=1) +
+  labs(x="Polygenic Risk Score", subtitle = "Mean Polygenic Risk Score of Cases and Controls", color="Experimental groups", fill="Experimental groups") +
+  theme(legend.position = "bottom") +
+  theme_bw() 
+#+
+#  scale_colour_discrete(labels=c("Control", "GGE cases", "Other seizure cases"))
+#dev.off()
+
+
+```
+```{r}
+#pdf("/sc/arion/projects/rg_HPIMS/user/daniej08/plots_and_graphs/PRS_Ancestries_Histogram.pdf")
+ggplot(BRSPD_PRS, aes(x=PRS_SCORE_SUM_SCALED, color=SuperPop, fill=SuperPop)) + 
+  geom_density(alpha=0.3, size=1) +
+  #geom_vline(data = mean_prs_df, aes(xintercept=mean, color=exp_Group), size=1) +
+  labs(x="Polygenic Risk Score", subtitle = "Polygenic Risk Score differences across ancestries", color="Genetic Ancestry", fill="Genetic Ancestry") +
+  theme(legend.position = "bottom") +
+  theme_bw()+
+  scale_fill_discrete( labels = c("AFR", "AMR", "EAS", "EUR", "SAS"))
+#dev.off()
+```
+
+```{r}
+tapply(BRSPD_PRS$PRS_SCORE_SUM_SCALED, BRSPD_PRS$PRS_Ancestry, FUN = mean)
+tapply(BRSPD_PRS$PRS_SCORE_SUM_SCALED, BRSPD_PRS$PRS_Ancestry, FUN = median)
+tapply(BRSPD_PRS$PRS_SCORE_SUM_SCALED, BRSPD_PRS$PRS_Ancestry, FUN = var)
+tapply(BRSPD_PRS$PRS_SCORE_SUM_SCALED, BRSPD_PRS$PRS_Ancestry, FUN = sd)
+```
+
+
+
+
+
+```{r}
+#Quantiles of (all) PRSs
+quant_tab <- quantile(BRSPD_PRS$PRS_SCORE_SUM_SCALED, probs=c(0, 0.25, 0.5, 0.75, 1), na.rm = TRUE)
+quant_tab <- as.data.frame(quant_tab)
+quant_tab
+dim(quant_tab)
+
+#Quantiles of each ancestry
+library("dplyr") # Load dplyr package
+
+do.call("rbind", tapply(BRSPD_PRS$PRS_SCORE_SUM_SCALED, # Specify numeric column
+                        BRSPD_PRS$PRS_Ancestry, # Specify group variable
+                        quantile,
+                        na.rm=TRUE)) 
+
+```
+
+
+```{r}
+#Quantiles of (all) PRSs
+quant_tab10 <- quantile(BRSPD_PRS$PRS_SCORE_SUM_SCALED, probs=c(0, 0.90, 1), na.rm = TRUE)
+quant_tab10 <- as.data.frame(quant_tab10)
+quant_tab10
+dim(quant_tab10)
+
+```
+
+
+
+
+
+```{r PRS Quantile Categorization}
+quantile <- c()
+for(row in 1:nrow(BRSPD_PRS)){
+  score <- BRSPD_PRS$PRS_SCORE_SUM_SCALED[row]
+  #quantile <- "none"
+  if(!is.na(score)) {
+    if (score <= -0.67207975) {
+       quantile <-  c(quantile,"b-lower25")
+    } else if (score <= 0.67318546) {
+      quantile <- c(quantile,"a-middle50")
+    } else {
+      quantile <- c(quantile,"c-upper25")
+    }
+  }else {
+    quantile <-  c(quantile, NA)
+  }
+#if (quantile == "none" | is.na(quantile)) {
+#  print(quantile)
+#  print(score)
+#  print(row)
+#  print("")
+#}
+}
+
+head(quantile)
+table(quantile)
+
+BRSPD_PRS$PRS_Quartiles <- quantile
+checkscore <- cbind(BRSPD_PRS$PRS_SCORE_SUM_SCALED, BRSPD_PRS$PRS_Quartiles)
+#View(checkscore)
+summary(checkscore)
+#sum(is.na(checkscore[,2]))
+typeof(BRSPD_PRS$PRS_Quartiles)
+typeof(BRSPD_PRS$PRS_SCORE_SUM_SCALED)
+
+```
+
+```{r eval=FALSE, include=FALSE}
+prs_Quantiles <- c()
+check_score_sum <- c()
+for(row in 1:nrow(BRSPD_PRS)){
+  score <- BRSPD_PRS$PRS_SCORE_SUM[row]
+  if (score %in% range(-0.0277290000, -0.0047868675)){
+    check_score_sum <- c(check_score_sum, BRSPD_PRS$PRS_SCORE_SUM[row])
+    prs_Quantiles <- c(prs_Quantiles, "lower25"[row])
+  }
+}  
+
+check_qunttabs <- cbind(prs_Quantiles,check_score_sum)
+#View(check_qunttabs)
+  
+  
+  if(between(!is.na(score), (-0.0277290000), (-0.0047868675))){
+    prs_Quantiles <- c(prs_Quantiles, "lower25")
+    }else if(between(!is.na(score), (-0.0047868675), 0.0047948525)){
+      prs_Quantiles <- c(prs_Quantiles, "middle50")
+    }else if(between(!is.na(score), 0.0047948525, 0.0291917000)){
+    prs_Quantiles <- c(prs_Quantiles, "upper25")
+    } else{
+      prs_Quantiles <- c(prs_Quantiles, "NA")}
+
+
+table(prs_Quantiles)
+```
+
+```{r eval=FALSE, include=FALSE}
+prs_Quantiles <- c()
+for(row in 1:nrow(BRSPD_PRS)){
+  score <- BRSPD_PRS$PRS_SCORE_SUM[row]
+  if(!is.na(score)) {
+    if (score <= -0.0047868675) {
+       prs_Quantiles <- c(prs_Quantiles, "lower25")
+    } else if (score > (-0.0047868675) & score < 0.0047948525) { # you need an AND here I would say
+      prs_Quantiles <- c(prs_Quantiles, "middle50")
+    } else {
+      prs_Quantiles <- c(prs_Quantiles, "upper25")
+    }
+  } else {
+    # handle NA
+  }
+}
+
+BRSPD_PRS$prs_Quantiles <- prs_Quantiles
+table(prs_Quantiles)
+checkscore <- cbind(BRSPD_PRS$PRS_SCORE_SUM, BRSPD_PRS$prs_Quantiles)
+View(checkscore)
+
+```
+
+```{reval=FALSE, include=FALSE}
+prs_Quantiles <- c()
+for(row in 1:nrow(BRSPD_PRS)){
+  score <- BRSPD_PRS$PRS_SCORE_SUM[row]
+  if(!is.na(score)) {
+    if (score <= -0.0047868675) {
+       prs_Quantiles <- c(prs_Quantiles, "lower25")
+    } else if (score <= 0.0047948525) {
+      prs_Quantiles <- c(prs_Quantiles, "middle50")
+    } else {
+      prs_Quantiles <- c(prs_Quantiles, "upper25")
+    }
+  } else {
+    prs_Quantiles <- c(prs_Quantiles, "score_na")
+  }
+}
+table(prs_Quantiles)
+BRSPD_PRS$prs_Quantiles <- prs_Quantiles
+checkscore <- cbind(BRSPD_PRS$PRS_SCORE_SUM, BRSPD_PRS$prs_Quantiles)
+nrow(checkscore)
+sum(is.na(checkscore[,2]))
+```
+
+```{r eval=FALSE, include=FALSE}
+#anyNA(BRSPD_PRS$PRS_SCORE_SUM)
+
+prs_Quantiles <- c()
+for(row in 1:nrow(BRSPD_PRS)){
+  score <- BRSPD_PRS$PRS_SCORE_SUM[row]
+  if(!is.na(score) <= -0.0047868675){
+    prs_Quantiles <- c(prs_Quantiles, "lower25")
+    }else if(!is.na(score) <= 0.0047948525){
+      prs_Quantiles <- c(prs_Quantiles, "middle50")
+    }else if(!is.na(score) > 0.0047948525){
+    prs_Quantiles <- c(prs_Quantiles, "upper25")
+    } else{
+      prs_Quantiles <- c(prs_Quantiles, "NA")}
+}
+
+table(prs_Quantiles)
+#BRSPD_PRS$PRS_Quantiles <- PRS_Quantiles
+
+BRSPD_PRS$Quartile<-ifelse(BRSPD_PRS$PRS_SCORE_SUM<=quantile(BRSPD_PRS$PRS_SCORE_SUM,c(0.25),na.rm=T),1,
+                           ifelse(BRSPD_PRS$PRS_SCORE_SUM<=quantile(BRSPD_PRS$PRS_SCORE_SUM,c(0.5),na.rm=T),2,
+                                  ifelse(BRSPD_PRS$PRS_SCORE_SUM<=quantile(BRSPD_PRS$PRS_SCORE_SUM,c(0.75),na.rm=T),3,
+                                         ifelse(BRSPD_PRS$PRS_SCORE_SUM<=quantile(BRSPD_PRS$PRS_SCORE_SUM,c(1),na.rm=T),4))))
+table(BRSPD_PRS$Quartile)
+
+
+head(BRSPD_PRS$PRS_SCORE_SUM)
+```
+
+```{r eval=FALSE, include=FALSE}
+BRSPD_PRS$Quartile<-cut(BRSPD_PRS$PRS_SCORE_SUM,quantile(BRSPD_PRS$PRS_SCORE_SUM, na.rm=TRUE),include.lowest=TRUE,labels=FALSE)
+table(BRSPD_PRS$Quartile)
+
+
+idx <- BRSPD_PRS$PRS_SCORE_SUM != 0
+#table(idx)
+
+BRSPD_PRS$scorestatus <- factor(NA_character_, levels = c("NA", "lower", "middle", "upper"))
+
+BRSPD_PRS$scorestatus[idx] <- cut(BRSPD_PRS$PRS_SCORE_SUM[idx],
+                                   breaks = quantile(BRSPD_PRS$PRS_SCORE_SUM[idx], probs = c(0, 0.25, 0.5, 0.75), na.rm=TRUE),
+                                   include.lowest = TRUE,
+                                   labels = c("lower", "middle", "upper"), na.rm=TRUE)
+
+BRSPD_PRS$scorestatus[!idx] <- "NA"
+
+rm(BRSPD_PRS$scorestatus)
+
+```
+
+```{r eval=FALSE, include=FALSE}
+ncol(BRSPD_PRS)
+#colnames(BRSPD_PRS)
+sum(table(BRSPD_PRS$PRS_SCORE_SUM))
+sum(is.na(BRSPD_PRS$PRS_SCORE_SUM))
+
+library(dvmisc)
+PRS_Quant_Group <- quant_groups(BRSPD_PRS$PRS_SCORE_SUM, probs = c(0.25, 0.5, 0.75, 1), cut.list = NULL)
+BRSPD_PRS$PRS_Quant_Group <- PRS_Quant_Group
+
+table(BRSPD_PRS$PRS_Quant_Group)
+check_tabs <- cbind(BRSPD_PRS$PRS_SCORE_SUM, BRSPD_PRS$PRS_Quant_Group)
+View(check_tabs)
+
+```
+
+```{r eval=FALSE, include=FALSE}
+tableOne <- within(BRSPD_PRS, quartile <- as.integer(cut(PRS_SCORE_SUM, quantile(PRS_SCORE_SUM, probs=0:4/4, na.rm=TRUE), include.lowest=TRUE)))
+tableOne
+
+```
+
+
+
+```{r}
+View(BRSPD_PRS)
+```
+
+
+##AGE DISTRIBUTION
+
+```{r AGE}
+#Mean Age Of Diagnosis by Exp_Group
+mean_AgeOD_df <- BRSPD_PRS %>% 
+  group_by(exp_Group) %>%
+  summarize(mean=mean(Age_At_First_Diagnosis, na.rm = TRUE))
+mean_AgeOD_df
+
+
+#Range of Age of diagnosis by Exp_Group
+range_AgeOD_df <- BRSPD_PRS %>% 
+  group_by(exp_Group) %>%
+  summarize(range=range(Age_At_First_Diagnosis, na.rm = TRUE))
+range_AgeOD_df
+
+```
+
+```{r Age Visualization}
+#Age Boxplot : Cases vs Control
+#pdf("/sc/arion/projects/rg_HPIMS/user/daniej08/plots_and_graphs/AgeOfDiagnosis_ExpGrp_Boxplot1.pdf")
+ggplot(BRSPD_PRS, mapping = aes(Age_At_First_Diagnosis))+
+  geom_boxplot(mapping = aes(color=exp_Group)) +
+  labs(x ="Age (years) at first diagnosis", color="Experimental groups") +
+  theme_minimal()
+#dev.off()
+
+#+labs(title="Plot of length \n by dose", x ="Dose (mg)", y = "Teeth length")
+  
+  
+  
+#PRS Boxplot : Cases vs Control
+#pdf("/sc/arion/projects/rg_HPIMS/user/daniej08/plots_and_graphs/PRS_AOD_ExpGrp_Boxplot.pdf")
+ggplot(BRSPD_PRS, mapping = aes(Age_At_First_Diagnosis, PRS_SCORE_SUM_SCALED))+
+  geom_boxplot(mapping = aes(color=exp_Group)) +
+  labs(x ="Age (years) at first diagnosis", y="Polygenic Risk Score", color="Experimental groups")
+  theme_minimal()
+#dev.off()
+
+#PRS Scatterplot : Cases vs Control
+#pdf("/sc/arion/projects/rg_HPIMS/user/daniej08/plots_and_graphs/PRS_AOD_ExpGrp_Scatterplot.pdf")
+ggplot(BRSPD_PRS, mapping = aes(Age_At_First_Diagnosis, PRS_SCORE_SUM_SCALED))+
+  geom_point(mapping = aes(color=exp_Group)) +
+  labs(x ="Age (years) at first diagnosis", y="Polygenic Risk Score", color="Experimental groups")
+  theme_minimal()
+#dev.off()
+```
+
+
+```{r Longitudinal PRS with Age}
+#Longitudinal PRS = Proportion with GGE (cumulative hazard) vs Age (years)
+#pdf("/sc/arion/projects/rg_HPIMS/user/daniej08/plots_and_graphs/PRS_Ancestries_Histogram.pdf")
+qqplot(x=BRSPD_PRS$Age, y=BRSPD_PRS$PRS_SCORE_SUM_SCALED)
+
+```
+
+```{r Age@1st Diagnosis}
+#Inspect distribution of Age of Diagnosis
+#pdf("/sc/arion/projects/rg_HPIMS/user/daniej08/plots_and_graphs/AgeAtDiagnosis_Histogram1.pdf")
+hist(BRSPD_PRS$Age_At_First_Diagnosis,
+     border= "black",
+     xlab= "Age (years)",
+     prob= TRUE, # show densities instead of frequencies
+     main="Age at first diagnosis of GGE cases")
+#dev.off()
+#Negatively skewed - takes longer to experience the event
+
+#
+hist(subset(BRSPD_PRS, exp_Group="Control")$Age_At_First_Diagnosis,
+     border= "black",
+     xlab= "Age at diagnosis",
+     main="Age at first diagnosis of Controls")
+#
+#pdf("/sc/arion/projects/rg_HPIMS/user/daniej08/plots_and_graphs/AOD_Otherseizures_Histogram1.pdf")
+hist(subset(BRSPD_PRS, exp_Group="Other_seizures")$Age_At_First_Diagnosis,
+     border= "black",
+     xlab= "Age (years)",
+     prob= TRUE, # show densities instead of frequencies
+     main="Age at first diagnosis of Other seizure cases")
+#dev.off()
+
+#
+ggplot(BRSPD_PRS, aes(x=Age_At_First_Diagnosis, col=exp_Group)) + geom_freqpoly() + theme_bw()
+```
+
+## Survival Analysis
+```{r GGE Censoring}
+#Time to event
+#-Kaplan-Meier Analysis (nonparametric method)
+#-Follow-up Life Table
+#-Survival curve = Time to the diagnosis of epilepsy
+#Censoring = Right censoring
+
+#Create censoring variable (right censoring)
+#1=GGE_cases (noncensored variables i.e. they experienced the event of interest);
+#0=Controls and Other seizures (right censored variables)
+table(BRSPD_PRS$exp_Group)
+BRSPD_PRS$censored[BRSPD_PRS$exp_Group == "GGE_Case"] <- 1
+BRSPD_PRS$censored[BRSPD_PRS$exp_Group == "Other_seizures" | BRSPD_PRS$exp_Group == "Control"] <- 0
+table(BRSPD_PRS$censored)
+
+```
+```{r KM Model Fit1}
+#Kaplan-Meier Analysis - Life Table
+
+#install.packages("survival")
+library("survival")
+
+#Specify KM Analysis Model
+km_fit1 <- survfit(Surv(Age_At_First_Diagnosis, censored) ~ 1,
+                   data=BRSPD_PRS,
+                   type="kaplan-meier")
+print(km_fit1)
+#   856 observations deleted due to missingness 
+#         n events median 0.95LCL 0.95UCL
+#[1,] 19440     38     NA      NA      NA
+
+
+#KM Life table
+#Summarize KM analysis results using default time intervals
+summary(km_fit1)
+km_fit1_summary <- summary(km_fit1)
+km_fit1_summary
+#pdf("/sc/arion/projects/rg_HPIMS/user/daniej08/plots_and_graphs/km_fit1_summary.pdf")
+#dev.off()
+
+#Summarize KM analysis results by pre-specified time intervals;
+# and create a life table
+#summary(km_fit1, times = c(1:100))
+
+#Plot the cumulative survival rates (probabilities)
+plot(km_fit1)
+plot(km_fit1, conf.int=T, xlab="Time (Age)", ylab="%Diagnosed= S(t)", main="KaplanMeier-Model", las=1)  
+#, mark.time=TRUE     #show when observations were censored 
+
+##Plot aesthetically pleasing version of plot above - Using ggplot
+#install.packages("survminer")
+library(survminer)
+#pdf("/sc/arion/projects/rg_HPIMS/user/daniej08/plots_and_graphs/SurvCurve_Fit1.pdf")
+ggsurvplot(km_fit1, data=BRSPD_PRS, risk.table=FALSE, conf.int=FALSE, fun="cumhaz", 
+           xlim=c(0,80),
+           ylim=c(0,0.005),
+           xlab="Time (Age in years)",
+           ylab="Cumulative hazard of GGE diagnosis",
+           ggtheme=theme_minimal())
+#dev.off()
+```
+```{r KM Model fit2}
+#Kaplan Meier analysis to diagnosing any kind of seizure
+#Do same but put Other seizures together with GGEs as 1 (events)
+
+BRSPD_PRS$censored2[BRSPD_PRS$exp_Group == "GGE_Case" | BRSPD_PRS$exp_Group =="Other_seizures"] <- 1
+BRSPD_PRS$censored2[BRSPD_PRS$exp_Group ==  "Control"] <- 0
+table(BRSPD_PRS$censored2)
+
+km_fit2 <- survfit(Surv(Age_At_First_Diagnosis, censored2) ~ 1,
+                   data=BRSPD_PRS,
+                   type="kaplan-meier")
+print(km_fit2)
+#   856 observations deleted due to missingness 
+#         n  events median 0.95LCL 0.95UCL
+#[1,] 19440     433     NA      NA      NA
+
+
+#Summarize KM analysis results using default time intervals
+summary(km_fit2)
+km_fit2_summary <- summary(km_fit2)
+km_fit2_summary
+
+#Summarize KM analysis results by pre-specified time intervals;
+# and create a life table
+#summary(km_fit2, times = c(10, 20, 30, 40, 50, 60, 70, 80, 90, 100))
+
+#Plot the cumulative survival rates
+plot(km_fit2)
+plot(km_fit2, conf.int=T, xlab="Time(Age)", ylab="%Diagnosed= S(t)", main="KaplanMeier-Model 2", las=1) 
+ggsurvplot(km_fit2, data=BRSPD_PRS, risk.table=TRUE, conf.int=FALSE, fun="cumhaz",
+           ggtheme=theme_minimal())
+
+```
+
+```{r KM Model fit3 GGE by Super Population}
+#Categorize according to Super Population
+km_fit3_superpop <- survfit(Surv(Age_At_First_Diagnosis, censored) ~ SuperPop,
+                            data=BRSPD_PRS,
+                            type="kaplan-meier")
+print(km_fit3_superpop)
+
+summary(km_fit3_superpop)
+km_fit3_summary_superpop <- summary(km_fit3_superpop)
+km_fit3_summary_superpop
+
+plot(km_fit3_superpop, conf.int=T, xlab="Time(Age)", ylab="%Diagnosed= S(t)", main="Survival Analysis (KaplanMeier-Model) of GGE diagnosis stratified by Super Population", las=1) 
+
+#pdf("/sc/arion/projects/rg_HPIMS/user/daniej08/plots_and_graphs/SurvCurve_GGEbySuperPop.pdf")
+ggsurvplot(km_fit3_superpop, data=BRSPD_PRS, risk.table=FALSE, conf.int=FALSE, fun="cumhaz",
+           pval = FALSE, pval.method = TRUE,
+           #xlim=c(0,90),
+           ylim=c(0,0.012),
+           xlab="Time (Age in years)",
+           ylab="Cumulative hazard of GGE diagnosis",
+           ggtheme=theme_minimal())
+#dev.off()
+#pval shows the difference in cumulative probabilities between ancestries
+```
+
+
+```{r KM Model fit4 AllSeizures by Super Population}
+#Categorize according to Super Population
+km_fit4_superpop <- survfit(Surv(Age_At_First_Diagnosis, censored2) ~ SuperPop,
+                            data=BRSPD_PRS,
+                            type="kaplan-meier")
+print(km_fit4_superpop)
+
+summary(km_fit4_superpop)
+km_fit4_summary_superpop <- summary(km_fit4_superpop)
+km_fit4_summary_superpop
+
+plot(km_fit4_superpop, conf.int=T, xlab="Time(Years)", ylab="%Diagnosed= S(t)", main="KaplanMeier-Model4 Stratified by Super Population", las=1)
+
+plot(km_fit4_superpop, conf.int=F,
+     xlab="Time(Years)", ylab="%Diagnosed= S(t)", 
+     main="KaplanMeier-Model4 Stratified by Super Population", 
+     col=c("red","blue","purple","orange","green"), 
+     las=1, lwd=2, 
+     mark.time=TRUE) 
+legend(x=18,y=0.95, legend=c("AFR","AMR","EAS","EUR","SAS"), col=c("red","blue","purple","orange","green"), lty=1, lwd=2, bty="", cex=0.6)
+
+
+ggsurvplot(km_fit4_superpop, data=BRSPD_PRS, risk.table=TRUE, conf.int=FALSE, fun="cumhaz",
+           pval = FALSE, pval.method = FALSE,
+           ggtheme=theme_minimal())
+```
+
+
+```{r LOG-RANK-TEST}
+#Ho: survival in two groups is same 
+#Ha: survival is not the same across both groups 
+
+survdiff(Surv(Age_At_First_Diagnosis, censored) ~ SuperPop,
+         data=BRSPD_PRS)
+#reject Ho...the survival across groups differ! 
+```
+
+
+
+```{r KM Analysis PRS-Quantiles}
+typeof(BRSPD_PRS$PRS_Quartiles)
+
+#Change PRS to lower25%, middle50%, and upper25% to factors 
+
+BRSPD_PRS$PRS_Quartiles <- as.factor(BRSPD_PRS$PRS_Quartiles) 
+table(BRSPD_PRS$PRS_Quartiles)
+KM_fit_PRSquartile <- survfit(Surv(Age_At_First_Diagnosis, censored) ~ PRS_Quartiles,
+                            data=BRSPD_PRS,
+                            type="kaplan-meier")
+print(KM_fit_PRSquartile)
+
+summary(KM_fit_PRSquartile)
+KM_summary_PRSquartile <- summary(KM_fit_PRSquartile)
+KM_summary_PRSquartile
+
+plot(KM_fit_PRSquartile, conf.int=T, xlab="Time(Years)", ylab="%Event= S(t)", main="KaplanMeier-Model4 Stratified by PRS Quartiles", las=1)
+
+plot(KM_fit_PRSquartile, conf.int=F,
+     xlab="Time(Years)", ylab="%Event= S(t)", 
+     main="KaplanMeier-Model4 Stratified by PRS Quartiles", 
+     col=c("green","blue","red"), 
+     las=1, lwd=2, 
+     mark.time=TRUE) 
+legend(x=18,y=0.95, legend=c("lower25%","middle50%","upper25%"), col=c("green","blue","red"), lty=1, lwd=2, bty="", cex=0.6)
+
+#pdf("/sc/arion/projects/rg_HPIMS/user/daniej08/plots_and_graphs/SurvCurve_PRSQuantiles.pdf")
+ggsurvplot(KM_fit_PRSquartile, data=BRSPD_PRS, risk.table=FALSE, conf.int=FALSE, fun="cumhaz",
+           xlim=c(0,80),
+           ylim=c(0,0.005),
+           xlab="Age (years)",
+           ylab="Cumulative hazard of Polygenic risk Score",
+           pval = FALSE, pval.method = TRUE,
+           ggtheme=theme_minimal())
+#dev.off()
+
+```
+
+```{r LOG-RANK-TEST 2}
+#Ho: survival in two groups is same 
+#Ha: survival is not the same across both groups 
+
+survdiff(Surv(Age_At_First_Diagnosis, censored) ~ PRS_Quartiles,
+         data=BRSPD_PRS)
+
+
+```
+
+
+```{r}
+#Categorize according to PRS/GeneticAncestry
+km_prs_ancestry <- survfit(Surv(Age_At_First_Diagnosis, censored) ~ BRSPD_PRS$PRS_Quartiles + BRSPD_PRS$PRS_Ancestry,
+                            data=BRSPD_PRS,
+                            type="kaplan-meier")
+print(km_prs_ancestry)
+
+summary(km_prs_ancestry)
+km_prs_ancestry_summary <- summary(km_prs_ancestry)
+km_prs_ancestry_summary
+
+plot(km_prs_ancestry, conf.int=T, xlab="Time(Age in years)", ylab="%Diagnosed= S(t)", main="Kaplan Meier Model - Stratified by PRS_Ancestry", las=1) 
+
+#pdf("/sc/arion/projects/rg_HPIMS/user/daniej08/plots_and_graphs/SurvCurve_GGEbySuperPop.pdf")
+ggsurvplot(km_prs_ancestry, data=BRSPD_PRS, risk.table=FALSE, conf.int=FALSE, fun="cumhaz",
+           xlim=c(0,90),
+           ylim=c(0,0.015),
+           xlab="Time (Age in years)",
+           ylab="Cumulative hazard (PRS_Ancestry)",
+           pval = FALSE, pval.method = TRUE,
+           ggtheme=theme_minimal())
+#dev.off()
+#pval shows the difference in cumulative probabilities between ancestries
+
+
+
+
+
+
+```
+```{r}
+#BRSPD_PRS$PRS_Quartiles[BRSPD_PRS$PRS_Ancestry=="AFR"]
+
+#BRSPD_PRS$censored[BRSPD_PRS$PRS_Ancestry=="AFR"]
+
+```
+
+
+
+```{r}
+#Categorize according to PRS/GeneticAncestry == AFR
+km_prs_afr <- survfit(Surv(BRSPD_PRS$Age_At_First_Diagnosis[BRSPD_PRS$PRS_Ancestry=="AFR"], BRSPD_PRS$censored[BRSPD_PRS$PRS_Ancestry=="AFR"]) ~ BRSPD_PRS$PRS_Quartiles[BRSPD_PRS$PRS_Ancestry=="AFR"],
+                            data=BRSPD_PRS,
+                            type="kaplan-meier")
+print(km_prs_afr)
+
+summary(km_prs_afr)
+km_prs_ancestry_summary <- summary(km_prs_afr)
+km_prs_ancestry_summary
+
+#plot(km_prs_afr, conf.int=T, xlab="Time(Age in years)", ylab="%Diagnosed= S(t)", main="Kaplan Meier Model - Stratified by PRS_Ancestry", las=1) 
+
+#pdf("/sc/arion/projects/rg_HPIMS/user/daniej08/plots_and_graphs/SurvCurve_PRS_AFR.pdf")
+ggsurvplot(km_prs_afr, data=BRSPD_PRS, risk.table=FALSE, conf.int=FALSE, fun="cumhaz",
+           xlim=c(0,90),
+           ylim=c(0,0.004),
+           xlab="Time (Age in years)",
+           ylab="Cumulative hazard of Polygenic risk score",
+           pval = TRUE, pval.method = TRUE,
+           legend.title = "AFR",
+           legend.labs = c("Lower 25", "Middle 50", "Upper 25"),
+           ggtheme=theme_minimal())
+#dev.off()
+#pval shows the difference in cumulative probabilities between ancestries
+
+
+```
+
+
+```{r}
+#Categorize according to PRS/GeneticAncestry == EUR
+km_prs_eur <- survfit(Surv(BRSPD_PRS$Age_At_First_Diagnosis[BRSPD_PRS$PRS_Ancestry=="EUR"], BRSPD_PRS$censored[BRSPD_PRS$PRS_Ancestry=="EUR"]) ~ BRSPD_PRS$PRS_Quartiles[BRSPD_PRS$PRS_Ancestry=="EUR"],
+                            data=BRSPD_PRS,
+                            type="kaplan-meier")
+print(km_prs_eur)
+
+summary(km_prs_eur)
+km_prs_ancestry_summary <- summary(km_prs_eur)
+km_prs_ancestry_summary
+
+#plot(km_prs_eur, conf.int=T, xlab="Time(Age in years)", ylab="%Diagnosed= S(t)", main="Kaplan Meier Model - Stratified by PRS_Ancestry", las=1) 
+
+#pdf("/sc/arion/projects/rg_HPIMS/user/daniej08/plots_and_graphs/SurvCurve_PRS_EUR.pdf")
+ggsurvplot(km_prs_eur, data=BRSPD_PRS, risk.table=FALSE, conf.int=FALSE, fun="cumhaz",
+           xlim=c(0,90),
+           ylim=c(0,0.004),
+           xlab="Time (Age in years)",
+           ylab="Cumulative hazard of Polygenic risk score",
+           pval = TRUE, pval.method = TRUE,
+           legend.title = "EUR",
+           legend.labs = c("Lower 25", "Middle 50", "Upper 25"),
+           ggtheme=theme_minimal())
+#dev.off()
+#pval shows the difference in cumulative probabilities between ancestries
+
+
+```
+
+
+```{r}
+#Categorize according to PRS/GeneticAncestry == AMR
+km_prs_amr <- survfit(Surv(BRSPD_PRS$Age_At_First_Diagnosis[BRSPD_PRS$PRS_Ancestry=="AMR"], BRSPD_PRS$censored[BRSPD_PRS$PRS_Ancestry=="AMR"]) ~ BRSPD_PRS$PRS_Quartiles[BRSPD_PRS$PRS_Ancestry=="AMR"],
+                            data=BRSPD_PRS,
+                            type="kaplan-meier")
+print(km_prs_amr)
+
+summary(km_prs_amr)
+km_prs_ancestry_summary <- summary(km_prs_amr)
+km_prs_ancestry_summary
+
+#plot(km_prs_amr, conf.int=T, xlab="Time(Age in years)", ylab="%Diagnosed= S(t)", main="Kaplan Meier Model - Stratified by PRS_Ancestry", las=1) 
+
+#pdf("/sc/arion/projects/rg_HPIMS/user/daniej08/plots_and_graphs/SurvCurve_PRS_AMR.pdf")
+ggsurvplot(km_prs_amr, data=BRSPD_PRS, risk.table=FALSE, conf.int=FALSE, fun="cumhaz",
+           xlim=c(0,90),
+           ylim=c(0,0.0065),
+           xlab="Time (Age in years)",
+           ylab="Cumulative hazard of Ploygenic risk score",
+           pval = TRUE, pval.method = TRUE,
+           legend.title = "AMR",
+           legend.labs = c("Lower 25", "Middle 50", "Upper 25"),
+           ggtheme=theme_minimal())
+#dev.off()
+#pval shows the difference in cumulative probabilities between ancestries
+```
+
+
+```{r}
+#Categorize according to PRS/GeneticAncestry == EAS
+km_prs_eas <- survfit(Surv(BRSPD_PRS$Age_At_First_Diagnosis[BRSPD_PRS$PRS_Ancestry=="EAS"], BRSPD_PRS$censored[BRSPD_PRS$PRS_Ancestry=="EAS"]) ~ BRSPD_PRS$PRS_Quartiles[BRSPD_PRS$PRS_Ancestry=="EAS"],
+                            data=BRSPD_PRS,
+                            type="kaplan-meier")
+print(km_prs_eas)
+
+summary(km_prs_eas)
+km_prs_ancestry_summary <- summary(km_prs_eas)
+km_prs_ancestry_summary
+
+#plot(km_prs_eas, conf.int=T, xlab="Time(Age in years)", ylab="%Diagnosed= S(t)", main="Kaplan Meier Model - Stratified by PRS_Ancestry", las=1) 
+
+#pdf("/sc/arion/projects/rg_HPIMS/user/daniej08/plots_and_graphs/SurvCurve_PRS_EAS.pdf")
+ggsurvplot(km_prs_eas, data=BRSPD_PRS, risk.table=FALSE, conf.int=FALSE, fun="cumhaz",
+           xlim=c(0,90),
+           ylim=c(0,0.004),
+           xlab="Time (Age in years)",
+           ylab="Cumulative hazard of Polygenic risk score",
+           pval = TRUE, pval.method = TRUE,
+           legend.title = "EAS",
+           legend.labs = c("Lower 25", "Middle 50", "Upper 25"),
+           ggtheme=theme_minimal())
+#dev.off()
+#pval shows the difference in cumulative probabilities between ancestries
+```
+
+
+
+
+```{r}
+#Categorize according to PRS/GeneticAncestry == SAS
+km_prs_sas <- survfit(Surv(BRSPD_PRS$Age_At_First_Diagnosis[BRSPD_PRS$PRS_Ancestry=="SAS"], BRSPD_PRS$censored[BRSPD_PRS$PRS_Ancestry=="SAS"]) ~ BRSPD_PRS$PRS_Quartiles[BRSPD_PRS$PRS_Ancestry=="SAS"],
+                            data=BRSPD_PRS,
+                            type="kaplan-meier")
+print(km_prs_sas)
+
+summary(km_prs_sas)
+km_prs_ancestry_summary <- summary(km_prs_sas)
+km_prs_ancestry_summary
+
+#plot(km_prs_sas, conf.int=T, xlab="Time(Age in years)", ylab="%Diagnosed= S(t)", main="Kaplan Meier Model - Stratified by PRS_Ancestry", las=1) 
+
+#pdf("/sc/arion/projects/rg_HPIMS/user/daniej08/plots_and_graphs/SurvCurve_PRS_SAS.pdf")
+ggsurvplot(km_prs_sas, data=BRSPD_PRS, risk.table=FALSE, conf.int=FALSE, fun="cumhaz",
+           xlim=c(0,90),
+           ylim=c(0,0.004),
+           xlab="Time (Age in years)",
+           ylab="Cumulative hazard of Polygenic risk score",
+           pval = TRUE, pval.method = TRUE,
+           legend.title = "SAS",
+           legend.labs = c("Lower 25", "Middle 50", "Upper 25"),
+           ggtheme=theme_minimal())
+#dev.off()
+#pval shows the difference in cumulative probabilities between ancestries
+```
+
+
+
+```{r}
+#Fit Cox Proportional Model 
+#x-catergorical-variables 
+
+library(survival) 
+cox_mod <- coxph(Surv(Age_At_First_Diagnosis, censored) ~ PRS_Quartiles,
+                 data=BRSPD_PRS) 
+print(cox_mod)
+summary(cox_mod) 
+#exp(coef) = hazard ratios
+
+
+#BRSPD_PRS$Age_At_First_Diagnosis[BRSPD_PRS$PRS_Ancestry=="SAS"], BRSPD_PRS$censored[BRSPD_PRS$PRS_Ancestry=="SAS"]) ~ BRSPD_PRS$PRS_Quartiles[BRSPD_PRS$PRS_Ancestry=="SAS"]
+```
+
+
+
+
+
+```{r Cox Proportional Model}
+#Fit Cox Proportional Model 
+#x-catergorical-variables 
+
+library(survival) 
+cox_mod <- coxph(Surv(Age_At_First_Diagnosis, censored) ~ PRS_Quartiles + SuperPop,
+                 data=BRSPD_PRS) 
+print(cox_mod)
+summary(cox_mod) 
+#exp(coef) = hazard ratios
+
+
+#BRSPD_PRS$Age_At_First_Diagnosis[BRSPD_PRS$PRS_Ancestry=="SAS"], BRSPD_PRS$censored[BRSPD_PRS$PRS_Ancestry=="SAS"]) ~ BRSPD_PRS$PRS_Quartiles[BRSPD_PRS$PRS_Ancestry=="SAS"]
+```
+
+
+
+```{r Cox Hazard Ratios x-variables}
+
+cox_mod1 <- coxph(Surv(Age_At_First_Diagnosis, censored) ~ PRS_Quartiles,
+                 data=BRSPD_PRS)
+
+cox_mod2 <- coxph(Surv(Age_At_First_Diagnosis, censored) ~ PRS_Quartiles + SuperPop,
+                 data=BRSPD_PRS) 
+
+anova(cox_mod2, cox_mod1, test="LRT") 
+
+
+```
+
+
+
+```{r COX-ANCESTRIES}
+#Fit Cox Proportional Model 
+#x-catergorical-variables 
+
+library(survival) 
+cox_mod_afr <- coxph(Surv(BRSPD_PRS$Age_At_First_Diagnosis[BRSPD_PRS$PRS_Ancestry=="AFR"], BRSPD_PRS$censored[BRSPD_PRS$PRS_Ancestry=="AFR"]) ~ BRSPD_PRS$PRS_Quartiles[BRSPD_PRS$PRS_Ancestry=="AFR"],
+                 data=BRSPD_PRS) 
+print(cox_mod_afr)
+summary(cox_mod_afr)
+#exp(coef) = hazard ratios
+
+```
+
+
+```{r}
+#Fit Cox Proportional Model 
+#x-catergorical-variables 
+
+library(survival) 
+cox_mod_eur <- coxph(Surv(BRSPD_PRS$Age_At_First_Diagnosis[BRSPD_PRS$PRS_Ancestry=="EUR"], BRSPD_PRS$censored[BRSPD_PRS$PRS_Ancestry=="EUR"]) ~ BRSPD_PRS$PRS_Quartiles[BRSPD_PRS$PRS_Ancestry=="EUR"],
+                 data=BRSPD_PRS) 
+print(cox_mod_eur)
+summary(cox_mod_eur)
+#exp(coef) = hazard ratios
+```
+
+
+
+```{r}
+#Fit Cox Proportional Model 
+#x-catergorical-variables 
+
+library(survival) 
+cox_mod_amr <- coxph(Surv(BRSPD_PRS$Age_At_First_Diagnosis[BRSPD_PRS$PRS_Ancestry=="AMR"], BRSPD_PRS$censored[BRSPD_PRS$PRS_Ancestry=="AMR"]) ~ BRSPD_PRS$PRS_Quartiles[BRSPD_PRS$PRS_Ancestry=="AMR"],
+                 data=BRSPD_PRS) 
+print(cox_mod_amr)
+summary(cox_mod_amr)
+#exp(coef) = hazard ratios
+```
+
+
+
+```{r}
+#Fit Cox Proportional Model 
+#x-catergorical-variables 
+
+library(survival) 
+cox_mod_eas <- coxph(Surv(BRSPD_PRS$Age_At_First_Diagnosis[BRSPD_PRS$PRS_Ancestry=="EAS"], BRSPD_PRS$censored[BRSPD_PRS$PRS_Ancestry=="EAS"]) ~ BRSPD_PRS$PRS_Quartiles[BRSPD_PRS$PRS_Ancestry=="EAS"],
+                 data=BRSPD_PRS) 
+print(cox_mod_eas)
+summary(cox_mod_eas)
+#exp(coef) = hazard ratios
+```
+
+
+```{r}
+#Fit Cox Proportional Model 
+#x-catergorical-variables 
+
+library(survival) 
+cox_mod_sas <- coxph(Surv(BRSPD_PRS$Age_At_First_Diagnosis[BRSPD_PRS$PRS_Ancestry=="SAS"], BRSPD_PRS$censored[BRSPD_PRS$PRS_Ancestry=="SAS"]) ~ BRSPD_PRS$PRS_Quartiles[BRSPD_PRS$PRS_Ancestry=="SAS"],
+                 data=BRSPD_PRS) 
+print(cox_mod_sas)
+summary(cox_mod_sas)
+#exp(coef) = hazard ratios
+```
+
+
+
+
+```{r Cox Proportional Hazard numerical variable}
+#For numerical variables 
+
+cox_num <- coxph(Surv(Age_At_First_Diagnosis, censored) ~ PRS_SCORE_SUM_SCALED,
+                 data = BRSPD_PRS) 
+print(cox_num)
+summary(cox_num) 
+```
+```{r}
+#For numerical variables 
+
+cox_num1 <- coxph(Surv(Age_At_First_Diagnosis, censored) ~ PRS_SCORE_SUM_SCALED + Age,
+                 data = BRSPD_PRS) 
+print(cox_num1)
+summary(cox_num1) 
+```
+
+
+
+```{r}
+cox_num_afr <- coxph(Surv(BRSPD_PRS$Age_At_First_Diagnosis[BRSPD_PRS$PRS_Ancestry=="AFR"], BRSPD_PRS$censored[BRSPD_PRS$PRS_Ancestry=="AFR"]) ~ 
+                                                                                                                           BRSPD_PRS$Age[BRSPD_PRS$PRS_Ancestry=="AFR"] + 
+                                                                                                                           BRSPD_PRS$PRS_SCORE_SUM_SCALED[BRSPD_PRS$PRS_Ancestry=="AFR"],
+                                                                                                                         data = BRSPD_PRS) 
+print(cox_num_afr)
+summary(cox_num_afr)
+
+
+#BRSPD_PRS$Age_At_First_Diagnosis[BRSPD_PRS$PRS_Ancestry=="SAS"], BRSPD_PRS$censored[BRSPD_PRS$PRS_Ancestry=="SAS"]) ~ BRSPD_PRS$PRS_Quartiles[BRSPD_PRS$PRS_Ancestry=="SAS"]
+```
+
+
+
+```{r}
+cox_num_eur <- coxph(Surv(BRSPD_PRS$Age_At_First_Diagnosis[BRSPD_PRS$PRS_Ancestry=="EUR"], BRSPD_PRS$censored[BRSPD_PRS$PRS_Ancestry=="EUR"]) ~ 
+                                                                                                                           BRSPD_PRS$Age[BRSPD_PRS$PRS_Ancestry=="EUR"] + 
+                                                                                                                           BRSPD_PRS$PRS_SCORE_SUM_SCALED[BRSPD_PRS$PRS_Ancestry=="EUR"],
+                                                                                                                         data = BRSPD_PRS) 
+print(cox_num_eur)
+summary(cox_num_eur)
+
+```
+
+
+
+```{r}
+cox_num_amr <- coxph(Surv(BRSPD_PRS$Age_At_First_Diagnosis[BRSPD_PRS$PRS_Ancestry=="AMR"], BRSPD_PRS$censored[BRSPD_PRS$PRS_Ancestry=="AMR"]) ~ 
+                                                                                                                           BRSPD_PRS$Age[BRSPD_PRS$PRS_Ancestry=="AMR"] + 
+                                                                                                                           BRSPD_PRS$PRS_SCORE_SUM_SCALED[BRSPD_PRS$PRS_Ancestry=="AMR"],
+                                                                                                                         data = BRSPD_PRS) 
+print(cox_num_amr)
+summary(cox_num_amr)
+```
+
+
+```{r}
+cox_num_eas <- coxph(Surv(BRSPD_PRS$Age_At_First_Diagnosis[BRSPD_PRS$PRS_Ancestry=="EAS"], BRSPD_PRS$censored[BRSPD_PRS$PRS_Ancestry=="EAS"]) ~ 
+                                                                                                                           BRSPD_PRS$Age[BRSPD_PRS$PRS_Ancestry=="EAS"] + 
+                                                                                                                           BRSPD_PRS$PRS_SCORE_SUM_SCALED[BRSPD_PRS$PRS_Ancestry=="EAS"],
+                                                                                                                         data = BRSPD_PRS) 
+print(cox_num_eas)
+summary(cox_num_eas)
+```
+
+
+```{r}
+cox_num_sas <- coxph(Surv(BRSPD_PRS$Age_At_First_Diagnosis[BRSPD_PRS$PRS_Ancestry=="SAS"], BRSPD_PRS$censored[BRSPD_PRS$PRS_Ancestry=="SAS"]) ~ 
+                                                                                                                           BRSPD_PRS$Age[BRSPD_PRS$PRS_Ancestry=="SAS"] + 
+                                                                                                                           BRSPD_PRS$PRS_SCORE_SUM_SCALED[BRSPD_PRS$PRS_Ancestry=="SAS"],
+                                                                                                                         data = BRSPD_PRS) 
+print(cox_num_sas)
+summary(cox_num_sas)
+```
+
+
+
+
+
+```{r}
+#Save final Dataframe
+#View(BRSPD_PRS)
+fwrite(BRSPD_PRS, file.path("/sc/arion/projects/rg_HPIMS/user/daniej08/Final_BioMe_BRSPD_PRS_Final.tsv"), quote = F, sep = "\t", row.names = F, col.names = T)
+
+```
+
+
+
+```{r Logistic Regression}
+#Please find below some code to do logistic regression. category is a column in the table 'plotdata' data contains info on epilepsy case vs control.
+#It needs to be converted as a factor.
+
+plotdata[,category:=factor(category)]
+out <- glm(category ~ PRSgen +
+             sex + 
+             age +
+             age_sex + 
+             age2 + 
+             age2_sex +
+             PC1+PC2+PC3+PC4+PC5+PC6+PC7+PC8+PC9+PC10,
+           family = binomial(link = 'logit'),
+           data = plotdata)
+
+coefficients(summary(out))
+
+```
+
+
+
+```{r}
+colnames(BRSPD_PRS)
+```
+
+
+```{r CATEGORICAL PRS}
+BRSPD_PRS[,exp_Group:=factor(exp_Group)]
+out <- glm(exp_Group ~ PRS_Quartiles,
+           family = binomial(link = 'logit'),
+           data = BRSPD_PRS)
+
+coefficients(summary(out))
+```
+
+
+```{r}
+BRSPD_PRS[,exp_Group:=factor(exp_Group)]
+out <- glm(exp_Group ~ PRS_Quartiles + Age + GENDER.x + PRS_Ancestry + PC1 + PC2,
+           family = binomial(link = 'logit'),
+           data = BRSPD_PRS)
+
+coefficients(summary(out))
+```
+
+
+
+```{r}
+BRSPD_PRS[,exp_Group:=factor(exp_Group)]
+out_afr <- glm(BRSPD_PRS$exp_Group[BRSPD_PRS$PRS_Ancestry=="AFR"] ~ BRSPD_PRS$PRS_Quartiles[BRSPD_PRS$PRS_Ancestry=="AFR"] +
+                                                                     BRSPD_PRS$Age[BRSPD_PRS$PRS_Ancestry=="AFR"] + 
+                                                                     BRSPD_PRS$GENDER.x[BRSPD_PRS$PRS_Ancestry=="AFR"] + 
+                                                                     BRSPD_PRS$PC1[BRSPD_PRS$PRS_Ancestry=="AFR"] + 
+                                                                     BRSPD_PRS$PC2[BRSPD_PRS$PRS_Ancestry=="AFR"],
+                                                                      family = binomial(link = 'logit'),
+                                                                      data = BRSPD_PRS)
+
+coefficients(summary(out_afr))
+```
+
+```{r}
+BRSPD_PRS[,exp_Group:=factor(exp_Group)]
+out_eur <- glm(BRSPD_PRS$exp_Group[BRSPD_PRS$PRS_Ancestry=="EUR"] ~ BRSPD_PRS$PRS_Quartiles[BRSPD_PRS$PRS_Ancestry=="EUR"] +
+                                                                     BRSPD_PRS$Age[BRSPD_PRS$PRS_Ancestry=="EUR"] + 
+                                                                     BRSPD_PRS$GENDER.x[BRSPD_PRS$PRS_Ancestry=="EUR"] + 
+                                                                     BRSPD_PRS$PC1[BRSPD_PRS$PRS_Ancestry=="EUR"] + 
+                                                                     BRSPD_PRS$PC2[BRSPD_PRS$PRS_Ancestry=="EUR"],
+                                                                      family = binomial(link = 'logit'),
+                                                                      data = BRSPD_PRS)
+
+coefficients(summary(out_eur))
+```
+
+
+
+```{r}
+BRSPD_PRS[,exp_Group:=factor(exp_Group)]
+out_amr <- glm(BRSPD_PRS$exp_Group[BRSPD_PRS$PRS_Ancestry=="AMR"] ~ BRSPD_PRS$PRS_Quartiles[BRSPD_PRS$PRS_Ancestry=="AMR"] +
+                                                                     BRSPD_PRS$Age[BRSPD_PRS$PRS_Ancestry=="AMR"] + 
+                                                                     BRSPD_PRS$GENDER.x[BRSPD_PRS$PRS_Ancestry=="AMR"] + 
+                                                                     BRSPD_PRS$PC1[BRSPD_PRS$PRS_Ancestry=="AMR"] + 
+                                                                     BRSPD_PRS$PC2[BRSPD_PRS$PRS_Ancestry=="AMR"],
+                                                                      family = binomial(link = 'logit'),
+                                                                      data = BRSPD_PRS)
+
+coefficients(summary(out_amr))
+```
+
+
+
+```{r}
+BRSPD_PRS[,exp_Group:=factor(exp_Group)]
+out_eas <- glm(BRSPD_PRS$exp_Group[BRSPD_PRS$PRS_Ancestry=="EAS"] ~ BRSPD_PRS$PRS_Quartiles[BRSPD_PRS$PRS_Ancestry=="EAS"] +
+                                                                     BRSPD_PRS$Age[BRSPD_PRS$PRS_Ancestry=="EAS"] + 
+                                                                     BRSPD_PRS$GENDER.x[BRSPD_PRS$PRS_Ancestry=="EAS"] + 
+                                                                     BRSPD_PRS$PC1[BRSPD_PRS$PRS_Ancestry=="EAS"] + 
+                                                                     BRSPD_PRS$PC2[BRSPD_PRS$PRS_Ancestry=="EAS"],
+                                                                      family = binomial(link = 'logit'),
+                                                                      data = BRSPD_PRS)
+
+coefficients(summary(out_eas))
+```
+
+
+```{r}
+BRSPD_PRS[,exp_Group:=factor(exp_Group)]
+out_sas <- glm(BRSPD_PRS$exp_Group[BRSPD_PRS$PRS_Ancestry=="SAS"] ~ BRSPD_PRS$PRS_Quartiles[BRSPD_PRS$PRS_Ancestry=="SAS"] +
+                                                                     BRSPD_PRS$Age[BRSPD_PRS$PRS_Ancestry=="SAS"] + 
+                                                                     BRSPD_PRS$GENDER.x[BRSPD_PRS$PRS_Ancestry=="SAS"] + 
+                                                                     BRSPD_PRS$PC1[BRSPD_PRS$PRS_Ancestry=="SAS"] + 
+                                                                     BRSPD_PRS$PC2[BRSPD_PRS$PRS_Ancestry=="SAS"],
+                                                                      family = binomial(link = 'logit'),
+                                                                      data = BRSPD_PRS)
+
+coefficients(summary(out_sas))
+```
+
+
+
+
+```{r NUMERICAL PRS}
+BRSPD_PRS[,exp_Group:=factor(exp_Group)]
+out <- glm(exp_Group ~ PRS_SCORE_SUM_SCALED,
+           family = binomial(link = 'logit'),
+           data = BRSPD_PRS)
+
+coefficients(summary(out))
+```
+
+
+```{r}
+BRSPD_PRS[,exp_Group:=factor(exp_Group)]
+out <- glm(exp_Group ~ PRS_SCORE_SUM_SCALED + Age + GENDER.x + PRS_Ancestry + PC1 + PC2,
+           family = binomial(link = 'logit'),
+           data = BRSPD_PRS)
+
+coefficients(summary(out))
+```
+
+
+
+```{r}
+BRSPD_PRS[,exp_Group:=factor(exp_Group)]
+out_num_afr <- glm(BRSPD_PRS$exp_Group[BRSPD_PRS$PRS_Ancestry=="AFR"] ~ BRSPD_PRS$PRS_SCORE_SUM_SCALED[BRSPD_PRS$PRS_Ancestry=="AFR"] +
+                                                                     BRSPD_PRS$Age[BRSPD_PRS$PRS_Ancestry=="AFR"] + 
+                                                                     BRSPD_PRS$GENDER.x[BRSPD_PRS$PRS_Ancestry=="AFR"] + 
+                                                                     BRSPD_PRS$PC1[BRSPD_PRS$PRS_Ancestry=="AFR"] + 
+                                                                     BRSPD_PRS$PC2[BRSPD_PRS$PRS_Ancestry=="AFR"],
+                                                                      family = binomial(link = 'logit'),
+                                                                      data = BRSPD_PRS)
+
+coefficients(summary(out_num_afr))
+```
+
+```{r}
+BRSPD_PRS[,exp_Group:=factor(exp_Group)]
+out_num_eur <- glm(BRSPD_PRS$exp_Group[BRSPD_PRS$PRS_Ancestry=="EUR"] ~ BRSPD_PRS$PRS_SCORE_SUM_SCALED[BRSPD_PRS$PRS_Ancestry=="EUR"] +
+                                                                     BRSPD_PRS$Age[BRSPD_PRS$PRS_Ancestry=="EUR"] + 
+                                                                     BRSPD_PRS$GENDER.x[BRSPD_PRS$PRS_Ancestry=="EUR"] + 
+                                                                     BRSPD_PRS$PC1[BRSPD_PRS$PRS_Ancestry=="EUR"] + 
+                                                                     BRSPD_PRS$PC2[BRSPD_PRS$PRS_Ancestry=="EUR"],
+                                                                      family = binomial(link = 'logit'),
+                                                                      data = BRSPD_PRS)
+
+coefficients(summary(out_num_eur))
+```
+
+
+
+```{r}
+BRSPD_PRS[,exp_Group:=factor(exp_Group)]
+out_num_amr <- glm(BRSPD_PRS$exp_Group[BRSPD_PRS$PRS_Ancestry=="AMR"] ~ BRSPD_PRS$PRS_SCORE_SUM_SCALED[BRSPD_PRS$PRS_Ancestry=="AMR"] +
+                                                                     BRSPD_PRS$Age[BRSPD_PRS$PRS_Ancestry=="AMR"] + 
+                                                                     BRSPD_PRS$GENDER.x[BRSPD_PRS$PRS_Ancestry=="AMR"] + 
+                                                                     BRSPD_PRS$PC1[BRSPD_PRS$PRS_Ancestry=="AMR"] + 
+                                                                     BRSPD_PRS$PC2[BRSPD_PRS$PRS_Ancestry=="AMR"],
+                                                                      family = binomial(link = 'logit'),
+                                                                      data = BRSPD_PRS)
+
+coefficients(summary(out_num_amr))
+```
+
+
+
+```{r}
+BRSPD_PRS[,exp_Group:=factor(exp_Group)]
+out_num_eas <- glm(BRSPD_PRS$exp_Group[BRSPD_PRS$PRS_Ancestry=="EAS"] ~ BRSPD_PRS$PRS_SCORE_SUM_SCALED[BRSPD_PRS$PRS_Ancestry=="EAS"] +
+                                                                     BRSPD_PRS$Age[BRSPD_PRS$PRS_Ancestry=="EAS"] + 
+                                                                     BRSPD_PRS$GENDER.x[BRSPD_PRS$PRS_Ancestry=="EAS"] + 
+                                                                     BRSPD_PRS$PC1[BRSPD_PRS$PRS_Ancestry=="EAS"] + 
+                                                                     BRSPD_PRS$PC2[BRSPD_PRS$PRS_Ancestry=="EAS"],
+                                                                      family = binomial(link = 'logit'),
+                                                                      data = BRSPD_PRS)
+
+coefficients(summary(out_num_eas))
+```
+
+
+```{r}
+BRSPD_PRS[,exp_Group:=factor(exp_Group)]
+out_num_sas <- glm(BRSPD_PRS$exp_Group[BRSPD_PRS$PRS_Ancestry=="SAS"] ~ BRSPD_PRS$PRS_SCORE_SUM_SCALED[BRSPD_PRS$PRS_Ancestry=="SAS"] +
+                                                                     BRSPD_PRS$Age[BRSPD_PRS$PRS_Ancestry=="SAS"] + 
+                                                                     BRSPD_PRS$GENDER.x[BRSPD_PRS$PRS_Ancestry=="SAS"] + 
+                                                                     BRSPD_PRS$PC1[BRSPD_PRS$PRS_Ancestry=="SAS"] + 
+                                                                     BRSPD_PRS$PC2[BRSPD_PRS$PRS_Ancestry=="SAS"],
+                                                                      family = binomial(link = 'logit'),
+                                                                      data = BRSPD_PRS)
+
+coefficients(summary(out_num_sas))
+```

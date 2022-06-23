@@ -1,0 +1,1 @@
+python /sc/arion/projects/rg_HPIMS/user/daniej08/PRScs.py --ref_dir=/sc/arion/work/daniej08/ldblk_1kg_afr --bim_prefix=/sc/private/regen/data/Regeneron/GSA/GSA_hg19_QC_FINAL --sst_file=/sc/arion/projects/rg_HPIMS/user/daniej08/GGE_SUM_STATS --n_gwas=4867068 --out_dir=/sc/arion/projects/rg_HPIMS/user/daniej08/prscs_output/
